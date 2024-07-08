@@ -11,6 +11,7 @@ public interface EmployeeService {
     String add(Employee employee,long manageId);
 
     PageDto listEmployee(EmployeeDto employeeDto);
+    PageDto search();
     
 
 }

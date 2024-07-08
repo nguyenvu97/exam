@@ -16,6 +16,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -26,6 +27,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeRepository employeeRepository;
    private final ManageRepository manageRepository;
    private final MapperTogether<Employee, EmployeeDto> mapperTogether;
+   private final ConfigMap configMap;
 
 
     @Override
@@ -40,28 +42,47 @@ public class EmployeeServiceImpl implements EmployeeService {
         return "Create Ok";
     }
 
+
     @Override
     public PageDto listEmployee(EmployeeDto employeeDto) {
-        if (employeeDto.getPageNumber() <= 0 || employeeDto.getPageSize() <= 0){
-            employeeDto.setPageNumber(ConfigMap.pageNumber);
-            employeeDto.setPageSize(ConfigMap.pageSize);
+        // Kiểm tra và sửa đổi pageNumber và pageSize nếu không hợp lệ
+        if (employeeDto.getPageNumber() <= 0 || employeeDto.getPageSize() <= 0) {
+            employeeDto.setPageNumber(configMap.getPageNumber());
+            employeeDto.setPageSize(configMap.getPageSize());
         }
-        Page<Employee> page = employeeRepository.findAll(empolyeeSpecs.priceGreaterThan(employeeDto),
-                PageRequest.of(employeeDto.getPageNumber(),employeeDto.getPageSize(),
-                        Sort.by("email").descending()));
+
+        PageRequest pageRequest = PageRequest.of(employeeDto.getPageNumber(), employeeDto.getPageSize(),
+                Sort.by("id").descending());
+
+        System.out.println(pageRequest);
+
+        // Tìm kiếm trang dữ liệu từ repository
+        Page<Employee> page = employeeRepository.findAll(empolyeeSpecs.priceGreaterThan(employeeDto), pageRequest);
+
+        // Chuyển đổi danh sách Employee thành danh sách EmployeeDto
         List<EmployeeDto> employeeDtos = page.getContent().stream()
                 .map(mapperTogether::entityDto)
                 .collect(Collectors.toList());
-        return  PageDto.builder()
-                .content(employeeDtos)
-                .number(page.getNumber())
-                .numberOfElements(page.getNumberOfElements())
-                .totalElements(page.getTotalElements())
-                .totalPages(page.getTotalPages())
-                .pageNumber(page.getNumber() + 1) // Số trang bắt đầu từ 1
-                .pageSize(page.getSize())
-                .build();
 
+        // Tạo đối tượng PageDto và set các thông tin từ page vào
+        PageDto pageDto = new PageDto();
+        pageDto.setContent(employeeDtos);
+        pageDto.setNumber(page.getNumber());
+        pageDto.setNumberOfElements(page.getNumberOfElements());
+        pageDto.setTotalElements(page.getTotalElements());
+        pageDto.setTotalPages(page.getTotalPages());
+        pageDto.setPageNumber(page.getNumber());
+        pageDto.setPageSize(page.getSize());
+
+        return pageDto;
+    }
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PageDto search() {
+        EmployeeDto dto =  new EmployeeDto();
+        dto.setPageNumber(configMap.getPageNumber());
+        dto.setPageSize(configMap.getPageSize());
+        return listEmployee(dto);
     }
 
 }
